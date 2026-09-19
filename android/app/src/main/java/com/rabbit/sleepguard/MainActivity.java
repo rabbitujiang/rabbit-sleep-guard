@@ -281,6 +281,7 @@ public final class MainActivity extends Activity {
             check.setButtonTintList(new ColorStateList(
                     new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
                     new int[]{ACCENT, Color.rgb(112, 124, 157)}));
+            check.setChecked(selected.contains(packageName));
             check.setPadding(0, dp(5), 0, dp(5));
             appList.addView(check, matchWrap());
             appChoices.add(new AppChoice(packageName, check));
@@ -288,8 +289,13 @@ public final class MainActivity extends Activity {
     }
 
     private void saveApps() {
-        Set<String> selected = new HashSet<>();
-        for (AppChoice choice : appChoices) if (choice.checkBox.isChecked()) selected.add(choice.packageName);
+        // Keep saved packages that are temporarily absent from PackageManager's launcher
+        // query instead of silently deleting them when the visible list is saved.
+        Set<String> selected = new HashSet<>(preferences.blockedPackages());
+        for (AppChoice choice : appChoices) {
+            if (choice.checkBox.isChecked()) selected.add(choice.packageName);
+            else selected.remove(choice.packageName);
+        }
         preferences.saveBlockedPackages(selected);
         toast("已保存 " + selected.size() + " 个受限应用");
     }
