@@ -135,6 +135,14 @@ public final class GuardPreferences {
                 .apply();
     }
 
+    public boolean screenSharing() {
+        return preferences.getBoolean("screen_share_enabled", false);
+    }
+
+    public void setScreenSharing(boolean enabled) {
+        preferences.edit().putBoolean("screen_share_enabled", enabled).apply();
+    }
+
     public boolean configured() {
         return serverUrl().startsWith("https://") && deviceToken().length() >= 24;
     }

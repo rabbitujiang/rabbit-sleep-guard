@@ -117,7 +117,7 @@ Android 8.0 及以上可用。项目的 `minSdk` 是 26，`targetSdk` 是 35。
 5. 勾选要拦截的娱乐应用并保存。
 6. 在 vivo / OriginOS 中允许后台运行，关闭该应用的电量优化限制。无障碍服务本身通常可以常驻，但 vivo 的后台管理仍建议放行。
 
-应用不会读取页面文字或输入内容。它只使用无障碍事件里的应用包名，且只处理你主动勾选的包。状态首页使用月光蓝紫的磨砂玻璃视觉，并直接显示本机电量、充电、温度、网络、屏幕、在线状态和最后上报时间。
+睡眠守卫不读取输入控件或无障碍页面文字，只按勾选包名处理。新增的“让我们看屏幕”是独立、默认关闭的共享功能：在 App 明确开启后，伴侣可请求一张亮屏解锁时的屏幕图片（图片可能包含当前显示的文字），每次截图显示调用者提示；关闭开关立即停止本机截图。状态首页使用月光蓝紫的磨砂玻璃视觉，并直接显示本机电量、充电、温度、网络、屏幕、在线状态和最后上报时间。
 
 没有变化时不会重复上传；30 分钟心跳每月最多约 1,440 次请求，状态变化上报只会额外覆盖同一份最新状态文件，不会累积历史记录。服务器在最后一次上报后的 40 分钟内判定手机在线。打开受限应用时的即时确认不依赖下一次心跳；网络临时不可用且最近一次有效状态为开启时，应用仍按开启状态执行。
 
@@ -173,3 +173,16 @@ git grep -nE 'ANDROID_DEVICE_TOKEN|CODEX_CONTROL_TOKEN|OWNER_APPROVAL_CODE'
 ```
 
 确认真实的 `.env`、`server/data/`、`artifacts/`、APK、签名文件仍显示为忽略项，搜索结果中的密钥只来自变量名、示例占位值或文档说明。GitHub Actions 只读取仓库 Secrets 中的 Android 签名材料，不读取部署密钥；APK 不包含服务器配置。
+
+
+## 按需看屏幕（v0.5.0）
+
+在手机“陪伴 · 看屏幕”中开启共享并确认说明。需要 Android 11+ 和已开启的无障碍服务；更新后如权限未刷新，可关闭再开启无障碍。调用 `get_phone_screen`，参数 `viewer` 为 `codex`、`claude` 或 `agy`，手机提示对应名称。名称由可信客户端声明，不作为鉴权凭据。
+
+只在共享开启且亮屏解锁时每 3 秒检查请求，不连续录屏；熄屏/锁屏后停止网络轮询，亮屏恢复。单张图片缩放到长边最多 1600 像素并 JPEG 编码。保留系统对受保护页面的截图限制，失败明确返回错误，不用旧截图替代。不会开启点击、输入或其他遥控能力。
+
+服务端按现有设备/控制令牌分权：设备仅轮询与上传，控制端请求与取回；全部图片仅存在内存、最长 60 秒，MCP 返回后即删除。请求 25 秒过期，MCP 最长等待约 20 秒；服务器重启直接取消全部请求，不回放。旧 APK 保持原睡眠守卫功能，但不能截图。
+
+API：`POST /api/device/screen/poll`（enabled/available）、`POST /api/device/screen/result`（id 与 JPEG base64 data 或 error）；控制端 `GET /api/control/screen/status`、`POST /api/control/screen/request`（viewer）、`GET /api/control/screen/result/:id`。请勿把凭证放进 URL。反代如设上传限制，应允许 3MB JSON。
+
+API 依据：[Android AccessibilityService.takeScreenshot](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService#takeScreenshot(int,%20java.util.concurrent.Executor,%20android.accessibilityservice.AccessibilityService.TakeScreenshotCallback))。

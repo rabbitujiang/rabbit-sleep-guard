@@ -222,9 +222,44 @@ public final class MainActivity extends Activity {
         permissions.addView(background, topMargin(8));
         root.addView(permissions, topMargin(10));
 
+        addSectionTitle(root, "陪伴 · 看屏幕");
+        LinearLayout shareCard = card(false);
+        Switch sharing = new Switch(this);
+        sharing.setText("让我们看屏幕");
+        sharing.setTextColor(INK);
+        sharing.setTextSize(15f);
+        sharing.setEnabled(Build.VERSION.SDK_INT >= 30);
+        sharing.setChecked(preferences.screenSharing());
+        sharing.setOnCheckedChangeListener((button, checked) -> {
+            if (checked) {
+                sharing.setChecked(false);
+                new android.app.AlertDialog.Builder(this)
+                    .setTitle("开启屏幕共享")
+                    .setMessage("开启后，连接这台服务器的伴侣可以在手机亮屏解锁时按需获取一张屏幕，画面可能包含正在显示的消息。每次截图会提示是谁在看，不连续录制；随时关闭这个开关即可停止。")
+                    .setPositiveButton("开启共享", (dialog, which) -> {
+                        preferences.setScreenSharing(true);
+                        sharing.setOnCheckedChangeListener(null);
+                        sharing.setChecked(true);
+                        sharing.setOnCheckedChangeListener((v, on) -> {
+                            preferences.setScreenSharing(on);
+                            GuardNotification.screenSharing(this, on);
+                        });
+                        GuardNotification.screenSharing(this, true);
+                    }).setNegativeButton("暂不开启", null).show();
+            } else {
+                preferences.setScreenSharing(false);
+                GuardNotification.screenSharing(this, false);
+            }
+        });
+        shareCard.addView(sharing);
+        shareCard.addView(text(Build.VERSION.SDK_INT >= 30
+            ? "开启后按需分享一张屏幕，不录屏。锁屏、息屏时不截图；截图后会提示是谁在看。需要启用无障碍服务。"
+            : "此功能需要 Android 11 或以上，睡眠守卫仍可正常使用。", 13, MUTED), topMargin(10));
+        root.addView(shareCard, topMargin(10));
+
         addSectionTitle(root, "受限应用");
         LinearLayout appsCard = card(false);
-        TextView hint = text("只识别勾选的应用，不读取聊天、输入或屏幕文字。", 14, MUTED);
+        TextView hint = text("睡眠守卫只识别勾选的应用；屏幕共享由上方独立开关控制。", 14, MUTED);
         appsCard.addView(hint);
         appList = new LinearLayout(this);
         appList.setOrientation(LinearLayout.VERTICAL);

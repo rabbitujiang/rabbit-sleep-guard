@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">兔酱睡眠守卫</string>
     <string name="accessibility_label">兔酱睡眠守卫</string>
-    <string name="accessibility_description">识别你主动选择的娱乐应用，在睡眠守卫开启时显示可操作的守卫页面并记录次数。不会读取输入内容。</string>
+    <string name="accessibility_description">识别你主动选择的娱乐应用，在睡眠守卫开启时显示可操作的守卫页面并记录次数。不读取输入控件；仅在你主动开启“让我们看屏幕”后，按请求截取当前屏幕并提示。</string>
     <string name="device_admin_label">允许睡眠守卫锁屏</string>
     <string name="device_admin_description">在守卫页面点“回去睡觉”时，允许守卫锁定屏幕。</string>
 </resources>

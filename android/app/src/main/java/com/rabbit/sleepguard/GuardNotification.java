@@ -53,6 +53,19 @@ public final class GuardNotification {
         context.getSystemService(NotificationManager.class).notify(STATUS_ID, notification);
     }
 
+    public static void screenSharing(Context context, boolean enabled) {
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (!enabled) { manager.cancel(2103); return; }
+        if (!allowed(context)) return;
+        createChannels(context);
+        manager.notify(2103, new Notification.Builder(context, CHANNEL_STATUS)
+                .setSmallIcon(R.drawable.ic_guard)
+                .setContentTitle("屏幕共享已开启")
+                .setContentText("伴侣可按需看一张屏幕 · 点此打开应用关闭")
+                .setOngoing(true).setOnlyAlertOnce(true)
+                .setContentIntent(openApp(context)).build());
+    }
+
     public static void hideActive(Context context) {
         context.getSystemService(NotificationManager.class).cancel(STATUS_ID);
     }

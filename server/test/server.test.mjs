@@ -150,6 +150,7 @@ test("static bearer token gives server Codex access to MCP", async () => {
     });
     const listed = await response.json();
     assert.deepEqual(listed.result.tools.map((tool) => tool.name), [
+      "get_phone_screen",
       "activate_sleep_guard",
       "deactivate_sleep_guard",
       "get_sleep_guard_status",
@@ -267,7 +268,7 @@ test("OAuth DCR and PKCE authorize an official-client MCP session", async () => 
     });
     assert.equal(response.status, 200);
     const listed = await response.json();
-    assert.equal(listed.result.tools.length, 4);
+    assert.equal(listed.result.tools.length, 5);
     assert.deepEqual(listed.result.tools[0].securitySchemes, [
       { type: "oauth2", scopes: ["sleep_guard:write"] },
     ]);

@@ -1,10 +1,11 @@
+import { ScreenShareService } from './screen-share.mjs';
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.mjs";
 import { GuardService, publicState } from "./guard-state.mjs";
 import { DeviceStatusService, publicDeviceStatus } from "./device-status.mjs";
-import { bearer, json, readJson, sameSecret } from "./http-utils.mjs";
+import { bearer, json, readJson, readBody, sameSecret } from "./http-utils.mjs";
 import { JsonStore } from "./json-store.mjs";
 import { handleMcp } from "./mcp.mjs";
 import { OAuthService } from "./oauth.mjs";
@@ -15,6 +16,7 @@ export async function createSleepGuardServer(config) {
   const guard = new GuardService(store, config);
   const deviceStatus = new DeviceStatusService(store);
   const oauth = new OAuthService(store, config);
+  const screenShare = new ScreenShareService();
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url, config.publicBaseUrl);
@@ -33,10 +35,20 @@ export async function createSleepGuardServer(config) {
       // ChatGPT keeps using the exact connection URL as the MCP transport URL.
       // Accept the origin as a compatibility alias so an existing connection
       // created without the documented `/mcp` suffix can still initialize.
-      if (["/", "/mcp"].includes(url.pathname)) return await handleMcp(request, response, guard, deviceStatus, oauth, config);
+      if (["/", "/mcp"].includes(url.pathname)) return await handleMcp(request, response, guard, deviceStatus, oauth, config, screenShare);
 
       if (url.pathname.startsWith("/api/device/")) {
         if (!sameSecret(bearer(request), config.androidDeviceToken)) return json(response, 401, { ok: false, error: "unauthorized" });
+        if (request.method === "POST" && url.pathname === "/api/device/screen/poll") {
+          return json(response, 200, screenShare.poll(await readJson(request)));
+        }
+        if (request.method === "POST" && url.pathname === "/api/device/screen/result") {
+          let body;
+          try { body = JSON.parse(await readBody(request, 3 * 1024 * 1024)); }
+          catch { return json(response, 413, { ok: false, error: "invalid_or_large_body" }); }
+          const result = screenShare.upload(body);
+          return json(response, result.ok ? 200 : 422, result);
+        }
         if (request.method === "GET" && url.pathname === "/api/device/status") {
           return json(response, 200, {
             ok: true,
@@ -73,6 +85,14 @@ export async function createSleepGuardServer(config) {
 
       if (url.pathname.startsWith("/api/control/")) {
         if (!sameSecret(bearer(request), config.codexControlToken)) return json(response, 401, { ok: false, error: "unauthorized" });
+        if (request.method === "GET" && url.pathname === "/api/control/screen/status") return json(response, 200, screenShare.status());
+        if (request.method === "POST" && url.pathname === "/api/control/screen/request") {
+          const result = screenShare.request((await readJson(request)).viewer);
+          return json(response, result.ok ? 200 : 409, result);
+        }
+        if (request.method === "GET" && url.pathname.startsWith("/api/control/screen/result/")) {
+          return json(response, 200, screenShare.result(url.pathname.split('/').pop()));
+        }
         if (request.method === "GET" && url.pathname === "/api/control/status") {
           return json(response, 200, { ok: true, ...publicState(await guard.status()) });
         }
@@ -97,7 +117,7 @@ export async function createSleepGuardServer(config) {
       response.end();
     }
   });
-  return { server, guard, deviceStatus, oauth, store };
+  return { server, guard, deviceStatus, oauth, store, screenShare };
 }
 
 const isDirectEntry = fileURLToPath(import.meta.url) === resolve(process.argv[1]);

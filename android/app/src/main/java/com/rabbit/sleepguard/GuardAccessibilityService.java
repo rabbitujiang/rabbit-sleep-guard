@@ -37,6 +37,7 @@ public final class GuardAccessibilityService extends AccessibilityService {
     private final Handler main = new Handler(Looper.getMainLooper());
     private GuardPreferences preferences;
     private GuardApiClient api;
+    private ScreenShareController screenShare;
     private WindowManager windowManager;
     private View overlay;
     private String lastPackage = "";
@@ -57,6 +58,7 @@ public final class GuardAccessibilityService extends AccessibilityService {
             if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
                 main.post(GuardAccessibilityService.this::restoreGuardPage);
             }
+            if (screenShare != null) screenShare.wake();
             scheduleStatusChangeReport();
         }
     };
@@ -128,6 +130,8 @@ public final class GuardAccessibilityService extends AccessibilityService {
         api = new GuardApiClient(preferences);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         GuardNotification.createChannels(this);
+        if (screenShare != null) screenShare.close();
+        screenShare = new ScreenShareController(this, preferences);
         registerStatusReceiver();
         registerNetworkCallback();
         restoreGuardPage();
@@ -456,6 +460,7 @@ public final class GuardAccessibilityService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        if (screenShare != null) screenShare.close();
         main.removeCallbacksAndMessages(null);
         screenLockRequestedByUser = false;
         if (statusReceiverRegistered) {
