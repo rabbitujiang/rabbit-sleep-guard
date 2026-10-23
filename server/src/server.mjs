@@ -117,6 +117,7 @@ export async function createSleepGuardServer(config) {
       response.end();
     }
   });
+  server.on("close", () => screenShare.close());
   return { server, guard, deviceStatus, oauth, store, screenShare };
 }
 

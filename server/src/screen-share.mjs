@@ -6,7 +6,10 @@ export class ScreenShareService {
     this.now = now;
     this.device = { enabled: false, available: false, seen_at: 0 };
     this.requests = new Map();
+    this.cleanup = setInterval(() => this.sweep(), 1000);
+    this.cleanup.unref();
   }
+  close() { clearInterval(this.cleanup); this.requests.clear(); }
   sweep() {
     const now = this.now();
     for (const [id, r] of this.requests) {

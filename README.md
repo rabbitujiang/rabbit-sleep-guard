@@ -186,3 +186,5 @@ git grep -nE 'ANDROID_DEVICE_TOKEN|CODEX_CONTROL_TOKEN|OWNER_APPROVAL_CODE'
 API：`POST /api/device/screen/poll`（enabled/available）、`POST /api/device/screen/result`（id 与 JPEG base64 data 或 error）；控制端 `GET /api/control/screen/status`、`POST /api/control/screen/request`（viewer）、`GET /api/control/screen/result/:id`。请勿把凭证放进 URL。反代如设上传限制，应允许 3MB JSON。
 
 API 依据：[Android AccessibilityService.takeScreenshot](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService#takeScreenshot(int,%20java.util.concurrent.Executor,%20android.accessibilityservice.AccessibilityService.TakeScreenshotCallback))。
+
+现有会话尚未刷新 MCP 工具列表时，也可用本机脚本：`node /path/to/rabbit-sleep-guard/server/bin/phone-screen.mjs codex /path/to/workspace/screen.jpg`（另两位替换为 claude/agy）。脚本从本机环境文件取凭证，不输出凭证，只输出文件路径；随后用自己的图片读取工具读取，不能仅凭“取得文件”声称看过。此脚本保存的图片由调用方管理，服务器不留档。
