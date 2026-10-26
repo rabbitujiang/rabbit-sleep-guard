@@ -150,6 +150,7 @@ test("static bearer token gives server Codex access to MCP", async () => {
     });
     const listed = await response.json();
     assert.deepEqual(listed.result.tools.map((tool) => tool.name), [
+      "get_phone_app_usage",
       "get_phone_screen",
       "activate_sleep_guard",
       "deactivate_sleep_guard",
