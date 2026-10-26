@@ -17,6 +17,7 @@ export class JsonStore {
     this.dataDir = dataDir;
     this.statePath = join(dataDir, "state.json");
     this.deviceStatusPath = join(dataDir, "device-status.json");
+    this.appUsagePath = join(dataDir, "app-usage.json");
     this.authPath = join(dataDir, "auth.json");
     this.eventsPath = join(dataDir, "events.jsonl");
   }
@@ -46,6 +47,10 @@ export class JsonStore {
   writeDeviceStatus(value) {
     return this.#atomicWrite(this.deviceStatusPath, value);
   }
+
+  readAppUsage(fallback) { return readJson(this.appUsagePath, fallback); }
+
+  writeAppUsage(value) { return this.#atomicWrite(this.appUsagePath, value); }
 
   readAuth(fallback) {
     return readJson(this.authPath, fallback);

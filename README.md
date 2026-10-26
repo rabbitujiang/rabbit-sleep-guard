@@ -209,3 +209,17 @@ java -cp /tmp/usage-tests UsageTimelineTest
 ```
 
 依据：[Android UsageStatsManager](https://developer.android.com/reference/android/app/usage/UsageStatsManager)、[UsageEvents.Event](https://developer.android.com/reference/android/app/usage/UsageEvents.Event)。真机验收应包含授予/撤销权限、跨日、熄屏、返回页面、旋转屏幕与覆盖升级后的原设置核对。
+
+## 伴侣直接查询使用时长（v0.6.1，替代 0.6.0 的仅本机查看）
+
+本版增加完整的手机→自托管服务→伴侣查询链路，无需打开统计页或截屏。
+
+- 手机安装 v0.6.1、保存有效服务器连接并授予使用情况访问权限后，默认同步应用名称、包名、前台时长与统计时间范围；不传页面内容。可在统计页关闭「同步使用时长给伴侣」。
+- 打开守卫/统计页、从权限设置返回、点「立即同步给伴侣」时尝试同步；无障碍服务运行期间约每 5 分钟自动同步。系统休眠、断网、后台服务被停止时会延后，查询必须以 `captured_at` 为准，不能当作实时值。
+- 服务端只覆盖保存一份 `server/data/app-usage.json`，权限 0600，不累积历史。关闭同步或撤销权限后，下次成功上报会清空旧统计；离线时不能保证立即清空。
+- 设备接口 `POST /api/device/usage` 使用原设备令牌，只允许设备写；控制接口 `GET /api/control/usage?range=today|yesterday|week` 使用原控制令牌，只允许控制端读。
+- MCP 工具 `get_phone_app_usage` 接受 `range`（默认 today），静态控制令牌和现有 OAuth 均可查询。三位伴侣共用同一能力，不改动锁定/解除权限与守卫状态。
+- 返回包含 `captured_at`、`received_at`、`age_seconds`、`stale`、`date_changed`、`timezone`、实际 `start/end`、`first_record_at`、`total_ms` 和应用排行。超过 10 分钟或手机本地日期已改变则标记过期；缺数据、权限未开、关闭共享、读取失败分别返回明确状态。
+- 系统记录不足七天仍可能导致周统计不完整，前台估算口径沿用 v0.6.0；不以缺失记录推断没有使用。
+
+安装仍沿用原固定签名与 applicationId；无需卸载或重填已有配置。覆盖升级后仍需在手机上验证真实统计与后台同步。

@@ -82,6 +82,13 @@ public final class GuardAccessibilityService extends AccessibilityService {
 
     private final Runnable statusChangeReport = () -> reportAndRefreshGuard(false);
 
+    private final Runnable usageHeartbeat = new Runnable() {
+        @Override public void run() {
+            UsageSync.schedule(GuardAccessibilityService.this, false);
+            main.postDelayed(this, 5 * 60_000L);
+        }
+    };
+
     private final Runnable heartbeat = new Runnable() {
         @Override
         public void run() {
@@ -99,6 +106,7 @@ public final class GuardAccessibilityService extends AccessibilityService {
 
     private void reportAndRefreshGuard(boolean force) {
         if (api == null || preferences == null || !preferences.configured()) return;
+        UsageSync.schedule(this, false);
         DeviceStatusReader.Snapshot snapshot = DeviceStatusReader.read(this);
         if (!force && snapshot.hasSameStatus(lastReportedStatus)) return;
         if (reportInFlight) {
@@ -137,6 +145,8 @@ public final class GuardAccessibilityService extends AccessibilityService {
         restoreGuardPage();
         main.removeCallbacks(heartbeat);
         main.post(heartbeat);
+        main.removeCallbacks(usageHeartbeat);
+        main.post(usageHeartbeat);
     }
 
     @Override

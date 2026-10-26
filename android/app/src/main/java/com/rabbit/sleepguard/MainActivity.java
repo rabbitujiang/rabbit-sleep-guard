@@ -90,6 +90,7 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (guardStatus != null) refreshStatus();
+        UsageSync.schedule(this, true);
     }
 
     private void styleSystemBars() {
@@ -356,6 +357,7 @@ public final class MainActivity extends Activity {
             if (result.requestOk) {
                 renderRemote(result);
                 toast("连接成功，状态已上报");
+                UsageSync.schedule(this, true);
             } else {
                 connectionState.setText("连接失败");
                 connectionState.setBackground(chipDrawable(false));

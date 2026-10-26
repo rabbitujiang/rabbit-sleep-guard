@@ -143,6 +143,11 @@ public final class GuardPreferences {
         preferences.edit().putBoolean("screen_share_enabled", enabled).apply();
     }
 
+    public boolean usageSharing() { return preferences.getBoolean("usage_share_enabled", true); }
+    public void setUsageSharing(boolean enabled) { preferences.edit().putBoolean("usage_share_enabled", enabled).apply(); }
+    public String usageSyncMessage() { return preferences.getString("usage_sync_message", "等待首次同步"); }
+    public void setUsageSyncMessage(String value) { preferences.edit().putString("usage_sync_message", value).apply(); }
+
     public boolean configured() {
         return serverUrl().startsWith("https://") && deviceToken().length() >= 24;
     }

@@ -38,6 +38,7 @@ public final class UsageActivity extends Activity {
     private static final int MINT = Color.rgb(128, 236, 213);
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private LinearLayout results;
+    private TextView syncStatus;
     private final List<Button> tabs = new ArrayList<>();
     private int selected = 0;
     private int generation = 0;
@@ -61,7 +62,21 @@ public final class UsageActivity extends Activity {
         TextView title = text("时间去哪儿了", 30, INK);
         title.setTypeface(null, Typeface.BOLD);
         root.addView(title, margin(18));
-        root.addView(text("应用使用时长 · 仅在本机查看", 14, MUTED), margin(8));
+        root.addView(text("应用使用时长 · 伴侣可直接查询", 14, MUTED), margin(8));
+        GuardPreferences prefs = new GuardPreferences(this);
+        android.widget.Switch sharing = new android.widget.Switch(this);
+        sharing.setText("同步使用时长给伴侣"); sharing.setTextColor(INK);
+        sharing.setChecked(prefs.usageSharing());
+        sharing.setOnCheckedChangeListener((v, enabled) -> {
+            prefs.setUsageSharing(enabled); syncUsage();
+        });
+        root.addView(sharing, margin(16));
+        root.addView(text("只同步应用名称和时长，不传页面内容；无障碍服务运行时约每五分钟更新。关闭会在联网后清除服务器上的统计。", 13, MUTED), margin(8));
+        syncStatus = text(prefs.usageSyncMessage(), 13, MINT);
+        root.addView(syncStatus, margin(8));
+        Button sync = button("立即同步给伴侣");
+        sync.setOnClickListener(v -> syncUsage());
+        root.addView(sync, margin(8));
         LinearLayout ranges = new LinearLayout(this);
         String[] labels = {"今天", "昨天", "近七天"};
         for (int i = 0; i < labels.length; i++) {
@@ -84,12 +99,20 @@ public final class UsageActivity extends Activity {
         setContentView(frame);
     }
 
-    @Override protected void onResume() { super.onResume(); refresh(); }
+    @Override protected void onResume() { super.onResume(); refresh(); syncUsage(); }
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putInt("range", selected); super.onSaveInstanceState(state);
     }
     @Override protected void onDestroy() {
         generation++; worker.shutdownNow(); super.onDestroy();
+    }
+
+    private void syncUsage() {
+        if (syncStatus == null) return;
+        syncStatus.setText("正在同步…");
+        UsageSync.schedule(this, true, message -> {
+            if (!isFinishing() && !isDestroyed()) syncStatus.setText(message);
+        });
     }
 
     private boolean hasAccess() {

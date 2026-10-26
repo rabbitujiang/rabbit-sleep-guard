@@ -268,7 +268,7 @@ test("OAuth DCR and PKCE authorize an official-client MCP session", async () => 
     });
     assert.equal(response.status, 200);
     const listed = await response.json();
-    assert.equal(listed.result.tools.length, 5);
+    assert.equal(listed.result.tools.length, 6);
     assert.deepEqual(listed.result.tools[0].securitySchemes, [
       { type: "oauth2", scopes: ["sleep_guard:write"] },
     ]);
