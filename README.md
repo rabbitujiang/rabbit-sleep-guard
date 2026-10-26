@@ -188,3 +188,24 @@ API：`POST /api/device/screen/poll`（enabled/available）、`POST /api/device/
 API 依据：[Android AccessibilityService.takeScreenshot](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService#takeScreenshot(int,%20java.util.concurrent.Executor,%20android.accessibilityservice.AccessibilityService.TakeScreenshotCallback))。
 
 现有会话尚未刷新 MCP 工具列表时，也可用本机脚本：`node /path/to/rabbit-sleep-guard/server/bin/phone-screen.mjs codex /path/to/workspace/screen.jpg`（另两位替换为 claude/agy）。脚本从本机环境文件取凭证，不输出凭证，只输出文件路径；随后用自己的图片读取工具读取，不能仅凭“取得文件”声称看过。此脚本保存的图片由调用方管理，服务器不留档。
+
+## 应用使用时长（v0.6.0）
+
+首页点「查看应用使用时长」，首次在系统设置授予「使用情况访问权限」，返回即刷新。支持今天、昨天和近七天，按时长降序显示各应用、包名、占比条及已记录的前台时长合计。页面延续现有月光蓝紫主题。
+
+- 只在打开页面或点刷新时读取 Android `UsageStatsManager.queryEvents`；后台线程计算，不增加常驻服务、轮询或服务器上传。
+- 时间范围按手机本地日历日计算；近七天包含今天。读取前一天的事件来衔接跨午夜会话，截断到所选范围；熄屏、锁屏、重启和应用切换结束当前计时。
+- 这是单前台应用的估算，不含后台播放，不等于系统屏幕亮起时长；含桌面等系统界面，分屏及厂商差异可能影响结果。
+- Android 只保留有限天数的事件。页面会显示本次最早可读记录，缺失事件不会补造，也不把“没有记录”解释成“完全没使用”。近七天是查询范围，不保证设备保存满七天。
+- 权限未开、撤销、读取失败和无数据均有独立提示；不新增应用使用额度或自动封锁。
+- 不写现有 `GuardPreferences`，保留连接、已选拦截应用、锁屏和看屏幕设置。沿用原 applicationId 与固定 release 签名覆盖安装，不需卸载。
+
+独立算法回归：
+
+```bash
+mkdir -p /tmp/usage-tests
+javac -d /tmp/usage-tests android/app/src/main/java/com/rabbit/sleepguard/UsageTimeline.java android/tests/UsageTimelineTest.java
+java -cp /tmp/usage-tests UsageTimelineTest
+```
+
+依据：[Android UsageStatsManager](https://developer.android.com/reference/android/app/usage/UsageStatsManager)、[UsageEvents.Event](https://developer.android.com/reference/android/app/usage/UsageEvents.Event)。真机验收应包含授予/撤销权限、跨日、熄屏、返回页面、旋转屏幕与覆盖升级后的原设置核对。

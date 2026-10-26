@@ -178,6 +178,10 @@ public final class MainActivity extends Activity {
         guardCard.addView(actions, topMargin(18));
         root.addView(guardCard, topMargin(14));
 
+        Button usage = button("查看应用使用时长", false);
+        usage.setOnClickListener(view -> startActivity(new Intent(this, UsageActivity.class)));
+        root.addView(usage, topMargin(14));
+
         addSectionTitle(root, "连接");
         LinearLayout connectionCard = card(false);
         serverUrl = input("https://sleep.example.com", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);

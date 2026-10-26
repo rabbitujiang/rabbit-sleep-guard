@@ -29,6 +29,11 @@ jobs:
           test -n "$ANDROID_KEYSTORE_BASE64"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/rabbit-sleep-guard-release.jks"
           chmod 600 "$RUNNER_TEMP/rabbit-sleep-guard-release.jks"
+      - name: Test usage timeline accounting
+        run: |
+          mkdir -p /tmp/usage-tests
+          javac -d /tmp/usage-tests android/app/src/main/java/com/rabbit/sleepguard/UsageTimeline.java android/tests/UsageTimelineTest.java
+          java -cp /tmp/usage-tests UsageTimelineTest
       - name: Build signed release APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/rabbit-sleep-guard-release.jks
