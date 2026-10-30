@@ -23,6 +23,10 @@ test('missing reports are unavailable; validation does not change last good snap
  assert.equal((await svc.report(sample(),now)).ok,true);
  const result=await svc.query('today',now);
  assert.equal(result.total_ms,180000); assert.equal(result.apps[0].package_name,'com.example.b'); assert.equal(result.stale,false);
+ assert.equal(result.captured_at_local,'2026-10-26 15:00:00 [Asia/Shanghai]');
+ assert.equal(result.start_local,'2026-10-26 00:00:00 [Asia/Shanghai]');
+ assert.equal(result.end_local,'2026-10-26 15:00:00 [Asia/Shanghai]');
+ assert.equal(result.first_record_at_local,'2026-10-25 23:00:00 [Asia/Shanghai]');
  for(const mutate of [r=>r.ranges.today.apps[0].duration_ms=-1,r=>r.timezone='invalid',r=>r.ranges.today.apps.push(r.ranges.today.apps[0]),r=>r.ranges.today.apps[0].duration_ms=Infinity,r=>r.captured_at='not-a-date',r=>r.ranges.today.apps[0].name=4]) {
   const bad=sample(); mutate(bad); assert.equal((await svc.report(bad,now)).ok,false);
  }
@@ -64,8 +68,48 @@ test('device writes and control/MCP reads are authenticated and leave guard stat
  assert.equal((await call('/api/control/usage?range=nope','c'.repeat(32))).status,422);
  const rpc=await (await call('/mcp','c'.repeat(32),{jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'get_phone_app_usage',arguments:{range:'yesterday'}}})).json();
  assert.equal(rpc.result.structuredContent.total_ms,180000);
+ assert.equal(rpc.result.structuredContent.captured_at_local,'2026-10-26 15:00:00 [Asia/Shanghai]');
  assert.equal(rpc.result.isError,false);
  const list=await (await call('/mcp','c'.repeat(32),{jsonrpc:'2.0',id:2,method:'tools/list'})).json();
- assert.ok(list.result.tools.some(t=>t.name==='get_phone_app_usage'));
+ const usageTool=list.result.tools.find(t=>t.name==='get_phone_app_usage');
+ assert.ok(usageTool); assert.match(usageTool.description,/Z 表示 UTC/); assert.match(usageTool.description,/\*_local/);
  assert.deepEqual(await guard.status(),before);
+});
+
+test('system totals preserve source, expanded buckets and overlapping application durations',async t=>{
+ const {svc}=await fixture(t);
+ const report=sample(); report.source='android_usage_stats';
+ for(const range of Object.values(report.ranges)) {
+  range.requested_start=range.start; range.requested_end=range.end;
+  range.start='2026-10-25T15:00:00Z';
+  const span=Date.parse(range.end)-Date.parse(range.start);
+  range.apps.forEach(app=>app.duration_ms=span);
+ }
+ assert.equal((await svc.report(report,now)).ok,true);
+ const result=await svc.query('today',now);
+ assert.equal(result.source,'android_usage_stats'); assert.equal(result.estimate,false);
+ assert.equal(result.interval_expanded,true);
+ assert.equal(result.requested_start_local,'2026-10-26 00:00:00 [Asia/Shanghai]');
+ assert.equal(result.start_local,'2026-10-25 23:00:00 [Asia/Shanghai]');
+ assert.equal(result.total_ms,2*(Date.parse(result.end)-Date.parse(result.start)));
+ const bad=structuredClone(report); bad.source='unknown';
+ assert.equal((await svc.report(bad,now)).ok,false);
+ bad.source='android_usage_stats'; bad.ranges.today.requested_end='2026-10-27T07:00:00Z';
+ assert.equal((await svc.report(bad,now)).ok,false);
+ const legacy=sample(); legacy.ranges.today.apps.forEach(app=>app.duration_ms=15*3600000);
+ assert.equal((await svc.report(legacy,now)).ok,false);
+});
+test('legacy snapshots remain explicitly estimated; empty system totals are not fabricated',async t=>{
+ const {svc}=await fixture(t);
+ await svc.report(sample(),now);
+ assert.equal((await svc.query('today',now)).estimate,true);
+ const report=sample(); report.source='android_usage_stats';
+ for(const range of Object.values(report.ranges)) {
+  range.requested_start=range.start; range.requested_end=range.end;
+  range.apps=[]; range.first_record_at=null;
+ }
+ assert.equal((await svc.report(report,now)).ok,true);
+ const result=await svc.query('today',now);
+ assert.equal(result.estimate,false); assert.deepEqual(result.apps,[]);
+ assert.equal(result.first_record_at,null); assert.equal(result.interval_expanded,false);
 });

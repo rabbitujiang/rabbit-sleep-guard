@@ -2,8 +2,6 @@ package com.rabbit.sleepguard;
 
 import android.app.Activity;
 import android.app.AppOpsManager;
-import android.app.usage.UsageEvents;
-import android.app.usage.UsageStatsManager;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
@@ -95,7 +93,7 @@ public final class UsageActivity extends Activity {
         results = new LinearLayout(this);
         results.setOrientation(LinearLayout.VERTICAL);
         root.addView(results, margin(18));
-        root.addView(text("按系统保留的前台切换记录估算，不含后台播放。系统可能只保留最近几天；缺失记录不会补成全天时长。分屏、系统桌面和厂商统计口径可能造成差异。", 12, MUTED), margin(24));
+        root.addView(text("直接读取安卓系统统计的应用前台使用时长，不再自行计时。分屏时各应用时长可重叠，合计不等于屏幕亮起时长。", 12, MUTED), margin(24));
         setContentView(frame);
     }
 
@@ -155,26 +153,11 @@ public final class UsageActivity extends Activity {
         final long begin = today.minusDays(selected == 2 ? 6 : selected == 1 ? 1 : 0)
                 .atStartOfDay(zone).toInstant().toEpochMilli();
         final long end = selected == 1 ? today.atStartOfDay(zone).toInstant().toEpochMilli() : now;
-        final long scanFrom = Instant.ofEpochMilli(begin).atZone(zone).toLocalDate()
-                .minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli();
         worker.execute(() -> {
             try {
-                UsageStatsManager manager = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
-                if (manager == null) throw new IllegalStateException("服务不可用");
-                UsageEvents events = manager.queryEvents(scanFrom, end);
-                if (events == null) throw new IllegalStateException("系统暂未返回记录");
-                UsageTimeline timeline = new UsageTimeline(begin, end);
-                UsageEvents.Event event = new UsageEvents.Event();
-                long earliest = Long.MAX_VALUE;
-                while (events.hasNextEvent()) {
-                    if (Thread.currentThread().isInterrupted()) return;
-                    events.getNextEvent(event);
-                    earliest = Math.min(earliest, event.getTimeStamp());
-                    timeline.accept(event.getTimeStamp(), event.getEventType(),
-                            event.getPackageName(), event.getClassName());
-                }
+                UsageSummary summary = SystemUsage.read(this, begin, end, now);
                 List<Row> rows = new ArrayList<>();
-                for (Map.Entry<String, Long> item : timeline.finish().entrySet()) {
+                for (Map.Entry<String, Long> item : summary.totals().entrySet()) {
                     String label = item.getKey();
                     try {
                         ApplicationInfo info = getPackageManager().getApplicationInfo(item.getKey(), 0);
@@ -188,11 +171,11 @@ public final class UsageActivity extends Activity {
                     int diff = Long.compare(b.millis, a.millis);
                     return diff == 0 ? a.pkg.compareTo(b.pkg) : diff;
                 });
-                final long first = earliest;
                 runOnUiThread(() -> {
                     if (ticket != generation || isFinishing() || isDestroyed()) return;
                     if (!hasAccess()) { refresh(); return; }
-                    render(rows, begin, end, first, zone);
+                    render(rows, summary.start, summary.end, summary.firstRecord, zone);
+                    if (summary.expanded()) results.addView(text("系统按整日统计，以上显示系统实际覆盖的区间。", 12, MUTED), margin(8));
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -217,10 +200,10 @@ public final class UsageActivity extends Activity {
         long total = 0;
         for (Row row : rows) total += row.millis;
         results.addView(text(UsageTimeline.duration(total), 30, MINT), margin(18));
-        results.addView(text("已记录的前台使用合计（含桌面等系统界面）", 13, MUTED), margin(4));
+        results.addView(text("系统统计的应用前台时长合计（含桌面等系统界面）", 13, MUTED), margin(4));
         if (first > begin && first != Long.MAX_VALUE) {
-            results.addView(text("本次最早可读记录：" + date.format(Instant.ofEpochMilli(first))
-                    + "；更早的时段无法确认。", 12, MUTED), margin(10));
+            results.addView(text("本次最早系统统计：" + date.format(Instant.ofEpochMilli(first))
+                    + "；不代表其余时段记录完整。", 12, MUTED), margin(10));
         }
         long max = rows.get(0).millis;
         for (Row row : rows) {

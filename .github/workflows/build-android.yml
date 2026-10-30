@@ -34,6 +34,11 @@ jobs:
           mkdir -p /tmp/usage-tests
           javac -d /tmp/usage-tests android/app/src/main/java/com/rabbit/sleepguard/UsageTimeline.java android/tests/UsageTimelineTest.java
           java -cp /tmp/usage-tests UsageTimelineTest
+      - name: Test system usage summaries
+        run: |
+          mkdir -p /tmp/usage-summary-tests
+          javac -d /tmp/usage-summary-tests android/app/src/main/java/com/rabbit/sleepguard/UsageSummary.java android/tests/UsageSummaryTest.java
+          java -cp /tmp/usage-summary-tests UsageSummaryTest
       - name: Build signed release APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/rabbit-sleep-guard-release.jks

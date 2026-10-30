@@ -223,3 +223,15 @@ java -cp /tmp/usage-tests UsageTimelineTest
 - 系统记录不足七天仍可能导致周统计不完整，前台估算口径沿用 v0.6.0；不以缺失记录推断没有使用。
 
 安装仍沿用原固定签名与 applicationId；无需卸载或重填已有配置。覆盖升级后仍需在手机上验证真实统计与后台同步。
+
+## 系统汇总使用时长（v0.6.2）
+
+统计页与伴侣同步统一读取 Android `UsageStatsManager.queryUsageStats(INTERVAL_DAILY, ...)`，直接取 `UsageStats.getTotalTimeInForeground()`；同一应用跨日记录只做求和，不再按前后台事件重建会话，不再自行计时。原连接、权限、共享开关及同步频率保持不变。
+
+- 使用新的 `SystemUsage` / `UsageSummary` 共用读取逻辑；不使用 `UsageTimeline` 计算时长（旧类仅保留格式化方法及历史测试）。
+- 上传标注 `source: android_usage_stats`，服务器返回 `estimate: false`。旧 APK/旧快照仍标记 `event_timeline`、`estimate: true`，不能冒充已升级。
+- 系统日桶可能超出查询区间；保留原值、不按比例拆分。`requested_start/end` 是用户查询范围，`start/end` 包含系统实际返回区间，`interval_expanded` 明确标识扩展。应用合计可因多窗口重叠而大于区间长度，不将合计当作屏幕亮起时长。
+- 系统读取失败或无数据不偷偷回退到旧估算；无权限/关闭共享保持原处理。
+- 需要覆盖安装 v0.6.2（versionCode 12）并成功同步后，伴侣才能拿到系统汇总。代码测试不代表手机已安装或完成真机核对。
+
+接口依据：[UsageStatsManager.queryUsageStats](https://developer.android.com/reference/android/app/usage/UsageStatsManager#queryUsageStats(int,long,long))、[UsageStats.getTotalTimeInForeground](https://developer.android.com/reference/android/app/usage/UsageStats#getTotalTimeInForeground())。

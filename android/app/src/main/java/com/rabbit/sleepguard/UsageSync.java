@@ -1,8 +1,6 @@
 package com.rabbit.sleepguard;
 
 import android.app.AppOpsManager;
-import android.app.usage.UsageEvents;
-import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -89,32 +87,13 @@ public final class UsageSync {
         long[] starts = {midnight, today.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli(),
                 today.minusDays(6).atStartOfDay(zone).toInstant().toEpochMilli()};
         long[] ends = {now, midnight, now};
-        long[] scanStarts = new long[3];
-        long[] first = {Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE};
-        UsageTimeline[] timelines = new UsageTimeline[3];
-        for (int i=0;i<3;i++) {
-            timelines[i] = new UsageTimeline(starts[i], ends[i]);
-            scanStarts[i] = Instant.ofEpochMilli(starts[i]).atZone(zone).toLocalDate()
-                    .minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli();
-        }
-        UsageStatsManager manager = (UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
-        if (manager == null) throw new IllegalStateException("no usage service");
-        UsageEvents events = manager.queryEvents(scanStarts[2], now);
-        if (events == null) throw new IllegalStateException("no usage events");
-        UsageEvents.Event e = new UsageEvents.Event();
-        while (events.hasNextEvent()) {
-            events.getNextEvent(e);
-            for (int i=0;i<3;i++) if (e.getTimeStamp() >= scanStarts[i] && e.getTimeStamp() <= ends[i]) {
-                first[i] = Math.min(first[i], e.getTimeStamp());
-                timelines[i].accept(e.getTimeStamp(), e.getEventType(), e.getPackageName(), e.getClassName());
-            }
-        }
         Map<String,String> names = new HashMap<>();
         String[] keys = {"today", "yesterday", "week"};
         JSONObject ranges = new JSONObject();
         for (int i=0;i<3;i++) {
+            UsageSummary summary = SystemUsage.read(context, starts[i], ends[i], now);
             JSONArray apps = new JSONArray();
-            for (Map.Entry<String,Long> item : timelines[i].finish().entrySet()) {
+            for (Map.Entry<String,Long> item : summary.totals().entrySet()) {
                 String pkg = item.getKey();
                 String label = names.get(pkg);
                 if (label == null) {
@@ -127,13 +106,15 @@ public final class UsageSync {
                 }
                 apps.put(new JSONObject().put("package_name",pkg).put("name",label).put("duration_ms",item.getValue()));
             }
-            ranges.put(keys[i], new JSONObject().put("start",Instant.ofEpochMilli(starts[i]).toString())
-                    .put("end",Instant.ofEpochMilli(ends[i]).toString())
-                    .put("first_record_at",first[i] == Long.MAX_VALUE ? JSONObject.NULL : Instant.ofEpochMilli(first[i]).toString())
+            ranges.put(keys[i], new JSONObject().put("start",Instant.ofEpochMilli(summary.start).toString())
+                    .put("end",Instant.ofEpochMilli(summary.end).toString())
+                    .put("requested_start",Instant.ofEpochMilli(starts[i]).toString())
+                    .put("requested_end",Instant.ofEpochMilli(ends[i]).toString())
+                    .put("first_record_at",summary.firstRecord == Long.MAX_VALUE ? JSONObject.NULL : Instant.ofEpochMilli(summary.firstRecord).toString())
                     .put("apps",apps));
         }
         return new JSONObject().put("state","ready").put("captured_at",Instant.ofEpochMilli(now).toString())
-                .put("timezone",zone.getId()).put("ranges",ranges);
+                .put("source",SystemUsage.SOURCE).put("timezone",zone.getId()).put("ranges",ranges);
     }
     private static boolean upload(GuardPreferences prefs, JSONObject report) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(prefs.serverUrl()+"/api/device/usage").openConnection();
