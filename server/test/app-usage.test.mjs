@@ -91,7 +91,7 @@ test('system totals preserve source, expanded buckets and overlapping applicatio
  assert.equal(result.interval_expanded,true);
  assert.equal(result.requested_start_local,'2026-10-26 00:00:00 [Asia/Shanghai]');
  assert.equal(result.start_local,'2026-10-25 23:00:00 [Asia/Shanghai]');
- assert.equal(result.total_ms,2*(Date.parse(result.end)-Date.parse(result.start)));
+ assert.equal(result.raw_android_usage.total_ms,2*(Date.parse(result.end)-Date.parse(result.start)));
  const bad=structuredClone(report); bad.source='unknown';
  assert.equal((await svc.report(bad,now)).ok,false);
  bad.source='android_usage_stats'; bad.ranges.today.requested_end='2026-10-27T07:00:00Z';
@@ -110,6 +110,33 @@ test('legacy snapshots remain explicitly estimated; empty system totals are not 
  }
  assert.equal((await svc.report(report,now)).ok,true);
  const result=await svc.query('today',now);
- assert.equal(result.estimate,false); assert.deepEqual(result.apps,[]);
+ assert.equal(result.estimate,false); assert.deepEqual(result.raw_android_usage.apps,[]);
  assert.equal(result.first_record_at,null); assert.equal(result.interval_expanded,false);
+});
+
+
+test('unverified system data cannot masquerade as screen time, including old snapshots',async t=>{
+ const {svc,store}=await fixture(t);
+ const report=sample(); report.source='android_usage_stats';
+ for(const range of Object.values(report.ranges)) {
+  range.requested_start=range.start; range.requested_end=range.end;
+ }
+ report.diagnostics={app_version:'0.6.3',status:'permission_denied',sdk:35,
+  permission_granted:false,exported:true,protection_level:3,unknown_private_field:'discard'};
+ assert.equal((await svc.report(report,now)).ok,true);
+ const result=await svc.query('today',now);
+ assert.equal(result.ok,false); assert.equal(result.error,'screen_time_source_unverified');
+ assert.equal(result.usable_for_screen_time,false);
+ assert.equal(result.apps,undefined); assert.equal(result.total_ms,undefined);
+ assert.equal(result.raw_android_usage.total_ms,180000);
+ assert.equal(result.diagnostics.status,'permission_denied');
+ assert.equal(result.diagnostics.unknown_private_field,undefined);
+ const previous=await store.readAppUsage(null); delete previous.diagnostics;
+ await store.writeAppUsage(previous);
+ assert.equal((await svc.query('today',now)).ok,false);
+ for(const bad of [{sdk:'35'},{permission_granted:'true'},{status:'x'.repeat(257)}]) {
+  report.diagnostics=bad; assert.equal((await svc.report(report,now)).ok,false);
+ }
+ await svc.report({state:'disabled',captured_at:new Date(now).toISOString(),diagnostics:report.diagnostics},now);
+ assert.equal((await store.readAppUsage(null)).diagnostics,undefined);
 });

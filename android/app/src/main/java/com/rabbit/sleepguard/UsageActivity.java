@@ -60,7 +60,7 @@ public final class UsageActivity extends Activity {
         TextView title = text("时间去哪儿了", 30, INK);
         title.setTypeface(null, Typeface.BOLD);
         root.addView(title, margin(18));
-        root.addView(text("应用使用时长 · 伴侣可直接查询", 14, MUTED), margin(8));
+        root.addView(text("屏幕使用时长 · 数据源核验中", 14, MUTED), margin(8));
         GuardPreferences prefs = new GuardPreferences(this);
         android.widget.Switch sharing = new android.widget.Switch(this);
         sharing.setText("同步使用时长给伴侣"); sharing.setTextColor(INK);
@@ -69,7 +69,7 @@ public final class UsageActivity extends Activity {
             prefs.setUsageSharing(enabled); syncUsage();
         });
         root.addView(sharing, margin(16));
-        root.addView(text("只同步应用名称和时长，不传页面内容；无障碍服务运行时约每五分钟更新。关闭会在联网后清除服务器上的统计。", 13, MUTED), margin(8));
+        root.addView(text("同步应用名称、原始时长及设备型号、系统版本和统计接口诊断，不传页面内容；无障碍服务运行时约每五分钟更新。关闭会在联网后清除服务器上的统计。", 13, MUTED), margin(8));
         syncStatus = text(prefs.usageSyncMessage(), 13, MINT);
         root.addView(syncStatus, margin(8));
         Button sync = button("立即同步给伴侣");
@@ -93,7 +93,7 @@ public final class UsageActivity extends Activity {
         results = new LinearLayout(this);
         results.setOrientation(LinearLayout.VERTICAL);
         root.addView(results, margin(18));
-        root.addView(text("直接读取安卓系统统计的应用前台使用时长，不再自行计时。分屏时各应用时长可重叠，合计不等于屏幕亮起时长。", 12, MUTED), margin(24));
+        root.addView(text("安卓通用统计不等于手机「健康使用设备」。目前未接通相同数据源，不把应用合计当作屏幕时长，也不会用自行估算补齐。", 12, MUTED), margin(24));
         setContentView(frame);
     }
 
@@ -174,8 +174,13 @@ public final class UsageActivity extends Activity {
                 runOnUiThread(() -> {
                     if (ticket != generation || isFinishing() || isDestroyed()) return;
                     if (!hasAccess()) { refresh(); return; }
-                    render(rows, summary.start, summary.end, summary.firstRecord, zone);
-                    if (summary.expanded()) results.addView(text("系统按整日统计，以上显示系统实际覆盖的区间。", 12, MUTED), margin(8));
+                    results.removeAllViews();
+                    results.addView(text("屏幕使用时长暂不可用", 22, INK));
+                    results.addView(text("安卓通用数据尚未与手机统计页核对一致，不作为实际使用时长。" +
+                            (summary.expanded() ? "当前原始数据还包含所选日期以外的时段。" : ""), 14, MUTED), margin(12));
+                    Button raw = button("查看原始数据（仅排错，不是屏幕时长）");
+                    raw.setOnClickListener(v -> render(rows, summary.start, summary.end, summary.firstRecord, zone));
+                    results.addView(raw, margin(16));
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -190,6 +195,7 @@ public final class UsageActivity extends Activity {
     private void render(List<Row> rows, long begin, long end, long first, ZoneId zone) {
         results.removeAllViews();
         DateTimeFormatter date = DateTimeFormatter.ofPattern("MM月dd日 HH:mm").withZone(zone);
+        results.addView(text("仅排错：未核实的安卓原始值，不代表手机统计页结果", 16, MINT), margin(8));
         results.addView(text(date.format(Instant.ofEpochMilli(begin)) + " — "
                 + date.format(Instant.ofEpochMilli(end)), 12, MUTED));
         if (rows.isEmpty()) {
@@ -200,7 +206,7 @@ public final class UsageActivity extends Activity {
         long total = 0;
         for (Row row : rows) total += row.millis;
         results.addView(text(UsageTimeline.duration(total), 30, MINT), margin(18));
-        results.addView(text("系统统计的应用前台时长合计（含桌面等系统界面）", 13, MUTED), margin(4));
+        results.addView(text("原始应用数值相加（不是屏幕时长，不用于判断使用情况）", 13, MUTED), margin(4));
         if (first > begin && first != Long.MAX_VALUE) {
             results.addView(text("本次最早系统统计：" + date.format(Instant.ofEpochMilli(first))
                     + "；不代表其余时段记录完整。", 12, MUTED), margin(10));

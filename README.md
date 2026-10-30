@@ -224,7 +224,7 @@ java -cp /tmp/usage-tests UsageTimelineTest
 
 安装仍沿用原固定签名与 applicationId；无需卸载或重填已有配置。覆盖升级后仍需在手机上验证真实统计与后台同步。
 
-## 系统汇总使用时长（v0.6.2）
+## 系统汇总使用时长（v0.6.2，未满足原生屏幕时长需求）
 
 统计页与伴侣同步统一读取 Android `UsageStatsManager.queryUsageStats(INTERVAL_DAILY, ...)`，直接取 `UsageStats.getTotalTimeInForeground()`；同一应用跨日记录只做求和，不再按前后台事件重建会话，不再自行计时。原连接、权限、共享开关及同步频率保持不变。
 
@@ -235,3 +235,15 @@ java -cp /tmp/usage-tests UsageTimelineTest
 - 需要覆盖安装 v0.6.2（versionCode 12）并成功同步后，伴侣才能拿到系统汇总。代码测试不代表手机已安装或完成真机核对。
 
 接口依据：[UsageStatsManager.queryUsageStats](https://developer.android.com/reference/android/app/usage/UsageStatsManager#queryUsageStats(int,long,long))、[UsageStats.getTotalTimeInForeground](https://developer.android.com/reference/android/app/usage/UsageStats#getTotalTimeInForeground())。
+
+
+## 数据源纠偏与接口诊断（v0.6.3）
+
+此版是诊断修正版，**不是已接通原生屏幕时长的完成版**。
+
+- 安卓通用 `UsageStats` 与厂商「健康使用设备」不是同一个可保证一致的结果；跨日期日桶不能靠比例拆分修正。
+- 服务端将新旧 `android_usage_stats` 快照统一标为 `screen_time_source_unverified`，`ok:false`、`usable_for_screen_time:false`；应用和合计移入 `raw_android_usage`，仅供排错。`estimate:false` 仅说明原值非本应用估算，绝不表示已核实准确。
+- App 默认显示“屏幕使用时长暂不可用”，用户可手动展开排错原值。不恢复旧事件算法、不伪造零值、不把各应用合计当作屏幕时长。
+- 在原有使用时长共享开关开启后，同步 App 版本、设备型号/系统版本，以及 vivo 原生统计 Provider 的可见性、版本、导出状态、权限等级和只读协议探测结果。声明厂商统计接口权限，由系统判断是否可授予；不修改厂商 App、不扩大无障碍读屏能力。
+- 探测 authority 为 `com.vivo.familycare.local.TimeManagerAppProvider`，只接受 `com.vivo.familycare.local` 包。只在权限允许时调用只读 `support_provider`；`protocol_available` 也不代表已读到统计。无权限时如实报告，不尝试绕过。
+- 原生读取是否可行必须由安装后的真机结果确认；APK 编译成功不能替代这一验收。

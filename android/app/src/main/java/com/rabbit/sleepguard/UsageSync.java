@@ -55,7 +55,7 @@ public final class UsageSync {
                 if (!upload(prefs, report)) throw new IllegalStateException("upload failed");
                 String status = report.getString("state");
                 String time = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
-                message = status.equals("ready") ? "已同步给伴侣 · " + time
+                message = status.equals("ready") ? "已同步诊断 · " + time + "（尚未接通手机屏幕时长）"
                         : status.equals("disabled") ? "已停止同步，服务器上的旧统计已清除。"
                         : status.equals("permission_required") ? "还需要开启使用情况访问权限。"
                         : "系统读取失败，已告知伴侣统计暂不可用。";
@@ -114,7 +114,7 @@ public final class UsageSync {
                     .put("apps",apps));
         }
         return new JSONObject().put("state","ready").put("captured_at",Instant.ofEpochMilli(now).toString())
-                .put("source",SystemUsage.SOURCE).put("timezone",zone.getId()).put("ranges",ranges);
+                .put("diagnostics", NativeUsageProbe.inspect(context)).put("source",SystemUsage.SOURCE).put("timezone",zone.getId()).put("ranges",ranges);
     }
     private static boolean upload(GuardPreferences prefs, JSONObject report) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(prefs.serverUrl()+"/api/device/usage").openConnection();
