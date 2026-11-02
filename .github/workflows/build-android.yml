@@ -39,6 +39,11 @@ jobs:
           mkdir -p /tmp/usage-summary-tests
           javac -d /tmp/usage-summary-tests android/app/src/main/java/com/rabbit/sleepguard/UsageSummary.java android/tests/UsageSummaryTest.java
           java -cp /tmp/usage-summary-tests UsageSummaryTest
+      - name: Test event usage accounting
+        run: |
+          mkdir -p /tmp/event-usage-tests
+          javac -d /tmp/event-usage-tests android/app/src/main/java/com/rabbit/sleepguard/EventAccounting.java android/tests/EventAccountingTest.java
+          java -cp /tmp/event-usage-tests EventAccountingTest
       - name: Build signed release APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/rabbit-sleep-guard-release.jks

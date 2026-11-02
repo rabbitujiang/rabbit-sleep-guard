@@ -247,3 +247,13 @@ java -cp /tmp/usage-tests UsageTimelineTest
 - 在原有使用时长共享开关开启后，同步 App 版本、设备型号/系统版本，以及 vivo 原生统计 Provider 的可见性、版本、导出状态、权限等级和只读协议探测结果。声明厂商统计接口权限，由系统判断是否可授予；不修改厂商 App、不扩大无障碍读屏能力。
 - 探测 authority 为 `com.vivo.familycare.local.TimeManagerAppProvider`，只接受 `com.vivo.familycare.local` 包。只在权限允许时调用只读 `support_provider`；`protocol_available` 也不代表已读到统计。无权限时如实报告，不尝试绕过。
 - 原生读取是否可行必须由安装后的真机结果确认；APK 编译成功不能替代这一验收。
+
+
+## 事件算法候选值（v0.6.4，核对中）
+
+此版**不是**屏幕时长的完成版，只多算一份候选值，用来和手机「健康使用设备」页核对。
+
+- 真机诊断确认 vivo 接口权限等级为 signature|privileged（`protection_level: 18`），普通 App 无法取得。拆包确认不做手机控统计走 `PACKAGE_USAGE_STATS` + `queryEvents`，不用 `getTotalTimeInForeground`。
+- `EventAccounting` 按系统事件重放，只在亮屏期间计应用时间；灭屏会关闭所有会话，所以漏掉暂停事件的 App 不会一直累计。首个亮灭屏事件之前的时间视为未知，不猜。
+- 同时上报亮屏时长、解锁后时长，以及两种应用口径（允许分屏重叠、单前台），核对后再定用哪一种。
+- 服务端放在 `candidate_event_usage`，仍返回 `ok:false`、`usable_for_screen_time:false`。没有核对一致之前不得当作真实使用时长。

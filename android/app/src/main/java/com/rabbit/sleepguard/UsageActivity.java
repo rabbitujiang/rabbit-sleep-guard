@@ -156,21 +156,15 @@ public final class UsageActivity extends Activity {
         worker.execute(() -> {
             try {
                 UsageSummary summary = SystemUsage.read(this, begin, end, now);
-                List<Row> rows = new ArrayList<>();
-                for (Map.Entry<String, Long> item : summary.totals().entrySet()) {
-                    String label = item.getKey();
-                    try {
-                        ApplicationInfo info = getPackageManager().getApplicationInfo(item.getKey(), 0);
-                        label = getPackageManager().getApplicationLabel(info).toString();
-                    } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {
-                        // Invisible/uninstalled packages remain counted, identified by package name.
-                    }
-                    rows.add(new Row(item.getKey(), label, item.getValue()));
-                }
-                rows.sort((a, b) -> {
-                    int diff = Long.compare(b.millis, a.millis);
-                    return diff == 0 ? a.pkg.compareTo(b.pkg) : diff;
-                });
+                List<Row> rows = rows(summary.totals());
+                EventUsage events = null;
+                List<Row> eventRows = null;
+                try {
+                    events = EventUsage.read(this, begin, end);
+                    eventRows = rows(events.overlapping.totals());
+                } catch (RuntimeException ignored) { }
+                final EventUsage candidate = events;
+                final List<Row> candidateRows = eventRows;
                 runOnUiThread(() -> {
                     if (ticket != generation || isFinishing() || isDestroyed()) return;
                     if (!hasAccess()) { refresh(); return; }
@@ -181,6 +175,11 @@ public final class UsageActivity extends Activity {
                     Button raw = button("查看原始数据（仅排错，不是屏幕时长）");
                     raw.setOnClickListener(v -> render(rows, summary.start, summary.end, summary.firstRecord, zone));
                     results.addView(raw, margin(16));
+                    if (candidate != null) {
+                        Button check = button("查看新算法结果（核对中，暂不作数）");
+                        check.setOnClickListener(v -> renderCandidate(candidate, candidateRows, begin, end, zone));
+                        results.addView(check, margin(12));
+                    }
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -190,6 +189,42 @@ public final class UsageActivity extends Activity {
                 });
             }
         });
+    }
+
+    private List<Row> rows(Map<String, Long> totals) {
+        List<Row> rows = new ArrayList<>();
+        for (Map.Entry<String, Long> item : totals.entrySet()) {
+            String label = item.getKey();
+            try {
+                ApplicationInfo info = getPackageManager().getApplicationInfo(item.getKey(), 0);
+                label = getPackageManager().getApplicationLabel(info).toString();
+            } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {
+                // Invisible/uninstalled packages remain counted, identified by package name.
+            }
+            rows.add(new Row(item.getKey(), label, item.getValue()));
+        }
+        rows.sort((a, b) -> {
+            int diff = Long.compare(b.millis, a.millis);
+            return diff == 0 ? a.pkg.compareTo(b.pkg) : diff;
+        });
+        return rows;
+    }
+
+    private void renderCandidate(EventUsage usage, List<Row> rows, long begin, long end, ZoneId zone) {
+        results.removeAllViews();
+        DateTimeFormatter date = DateTimeFormatter.ofPattern("MM月dd日 HH:mm").withZone(zone);
+        results.addView(text("核对中：还没和手机统计页对上，暂不作数", 16, MINT), margin(8));
+        results.addView(text(date.format(Instant.ofEpochMilli(begin)) + " — "
+                + date.format(Instant.ofEpochMilli(end)), 12, MUTED));
+        results.addView(text(UsageTimeline.duration(usage.overlapping.screenOnMillis()), 30, MINT), margin(18));
+        results.addView(text("亮屏时长", 13, MUTED), margin(4));
+        results.addView(text(UsageTimeline.duration(usage.overlapping.unlockedMillis()), 22, MINT), margin(12));
+        results.addView(text("解锁后时长", 13, MUTED), margin(4));
+        if (usage.firstEvent > begin && usage.firstEvent != Long.MAX_VALUE) {
+            results.addView(text("手机最早只留到 " + date.format(Instant.ofEpochMilli(usage.firstEvent))
+                    + "，更早的没有计入。", 12, MUTED), margin(10));
+        }
+        addCards(rows);
     }
 
     private void render(List<Row> rows, long begin, long end, long first, ZoneId zone) {
@@ -211,6 +246,11 @@ public final class UsageActivity extends Activity {
             results.addView(text("本次最早系统统计：" + date.format(Instant.ofEpochMilli(first))
                     + "；不代表其余时段记录完整。", 12, MUTED), margin(10));
         }
+        addCards(rows);
+    }
+
+    private void addCards(List<Row> rows) {
+        if (rows.isEmpty()) return;
         long max = rows.get(0).millis;
         for (Row row : rows) {
             LinearLayout card = new LinearLayout(this);

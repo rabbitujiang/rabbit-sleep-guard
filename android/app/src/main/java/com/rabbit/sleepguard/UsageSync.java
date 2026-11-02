@@ -55,7 +55,7 @@ public final class UsageSync {
                 if (!upload(prefs, report)) throw new IllegalStateException("upload failed");
                 String status = report.getString("state");
                 String time = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
-                message = status.equals("ready") ? "已同步诊断 · " + time + "（尚未接通手机屏幕时长）"
+                message = status.equals("ready") ? "已同步 · " + time + "（时长还在核对，暂不作数）"
                         : status.equals("disabled") ? "已停止同步，服务器上的旧统计已清除。"
                         : status.equals("permission_required") ? "还需要开启使用情况访问权限。"
                         : "系统读取失败，已告知伴侣统计暂不可用。";
@@ -77,6 +77,32 @@ public final class UsageSync {
     private static JSONObject state(String state) throws Exception {
         return new JSONObject().put("state", state).put("captured_at", Instant.now().toString());
     }
+    private static JSONArray appList(Context context, Map<String,String> names, Map<String,Long> totals) throws Exception {
+        JSONArray apps = new JSONArray();
+        for (Map.Entry<String,Long> item : totals.entrySet()) {
+            String pkg = item.getKey();
+            String label = names.get(pkg);
+            if (label == null) {
+                label = pkg;
+                try { label = context.getPackageManager().getApplicationLabel(
+                        context.getPackageManager().getApplicationInfo(pkg, 0)).toString(); }
+                catch (android.content.pm.PackageManager.NameNotFoundException ignored) { }
+                if (label.length() > 256) label = label.substring(0,256);
+                names.put(pkg,label);
+            }
+            apps.put(new JSONObject().put("package_name",pkg).put("name",label).put("duration_ms",item.getValue()));
+        }
+        return apps;
+    }
+    private static JSONObject eventUsage(Context context, Map<String,String> names, long begin, long end) throws Exception {
+        EventUsage usage = EventUsage.read(context, begin, end);
+        return new JSONObject().put("method",EventUsage.METHOD)
+                .put("first_event_at",usage.firstEvent == Long.MAX_VALUE ? JSONObject.NULL : Instant.ofEpochMilli(usage.firstEvent).toString())
+                .put("screen_on_ms",usage.overlapping.screenOnMillis())
+                .put("unlocked_ms",usage.overlapping.unlockedMillis())
+                .put("apps_overlapping",appList(context,names,usage.overlapping.totals()))
+                .put("apps_exclusive",appList(context,names,usage.exclusive.totals()));
+    }
     private static JSONObject collect(Context context, GuardPreferences prefs) throws Exception {
         if (!prefs.usageSharing()) return state("disabled");
         if (!hasAccess(context)) return state("permission_required");
@@ -92,26 +118,17 @@ public final class UsageSync {
         JSONObject ranges = new JSONObject();
         for (int i=0;i<3;i++) {
             UsageSummary summary = SystemUsage.read(context, starts[i], ends[i], now);
-            JSONArray apps = new JSONArray();
-            for (Map.Entry<String,Long> item : summary.totals().entrySet()) {
-                String pkg = item.getKey();
-                String label = names.get(pkg);
-                if (label == null) {
-                    label = pkg;
-                    try { label = context.getPackageManager().getApplicationLabel(
-                            context.getPackageManager().getApplicationInfo(pkg, 0)).toString(); }
-                    catch (android.content.pm.PackageManager.NameNotFoundException ignored) { }
-                    if (label.length() > 256) label = label.substring(0,256);
-                    names.put(pkg,label);
-                }
-                apps.put(new JSONObject().put("package_name",pkg).put("name",label).put("duration_ms",item.getValue()));
-            }
-            ranges.put(keys[i], new JSONObject().put("start",Instant.ofEpochMilli(summary.start).toString())
+            JSONArray apps = appList(context, names, summary.totals());
+            JSONObject range = new JSONObject().put("start",Instant.ofEpochMilli(summary.start).toString())
                     .put("end",Instant.ofEpochMilli(summary.end).toString())
                     .put("requested_start",Instant.ofEpochMilli(starts[i]).toString())
                     .put("requested_end",Instant.ofEpochMilli(ends[i]).toString())
                     .put("first_record_at",summary.firstRecord == Long.MAX_VALUE ? JSONObject.NULL : Instant.ofEpochMilli(summary.firstRecord).toString())
-                    .put("apps",apps));
+                    .put("apps",apps);
+            // A failed event read must not cost the existing diagnostics.
+            try { range.put("event_usage", eventUsage(context, names, starts[i], ends[i])); }
+            catch (RuntimeException ignored) { }
+            ranges.put(keys[i], range);
         }
         return new JSONObject().put("state","ready").put("captured_at",Instant.ofEpochMilli(now).toString())
                 .put("diagnostics", NativeUsageProbe.inspect(context)).put("source",SystemUsage.SOURCE).put("timezone",zone.getId()).put("ranges",ranges);

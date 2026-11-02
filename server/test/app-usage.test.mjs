@@ -140,3 +140,38 @@ test('unverified system data cannot masquerade as screen time, including old sna
  await svc.report({state:'disabled',captured_at:new Date(now).toISOString(),diagnostics:report.diagnostics},now);
  assert.equal((await store.readAppUsage(null)).diagnostics,undefined);
 });
+
+test('event candidates stay quarantined and are validated against the requested window',async t=>{
+ const {svc}=await fixture(t);
+ const report=sample(); report.source='android_usage_stats';
+ for(const range of Object.values(report.ranges)) {
+  range.requested_start=range.start; range.requested_end=range.end;
+  range.start='2026-10-25T15:00:00Z';
+  range.event_usage={method:'events_screen_v1',first_event_at:'2026-10-25T15:00:00Z',screen_on_ms:120000,unlocked_ms:90000,
+   apps_overlapping:[{package_name:'a.small',name:'小',duration_ms:1000},{package_name:'a.big',name:'大',duration_ms:60000}],
+   apps_exclusive:[{package_name:'a.big',name:'大',duration_ms:50000}]};
+ }
+ assert.equal((await svc.report(report,now)).ok,true);
+ const result=await svc.query('today',now);
+ assert.equal(result.ok,false); assert.equal(result.usable_for_screen_time,false);
+ assert.equal(result.event_usage,undefined);
+ assert.equal(result.candidate_event_usage.screen_on_ms,120000);
+ assert.equal(result.candidate_event_usage.apps_overlapping[0].package_name,'a.big');
+ assert.equal(result.candidate_event_usage.requested_start,result.requested_start);
+ assert.match(result.note,/candidate_event_usage/);
+ const span=Date.parse(report.ranges.today.requested_end)-Date.parse(report.ranges.today.requested_start);
+ for(const change of [
+  e=>{e.method='other';},
+  e=>{e.screen_on_ms=span+1;},
+  e=>{e.unlocked_ms=e.screen_on_ms+1;},
+  e=>{e.apps_exclusive[0].duration_ms=span+1;},
+  e=>{e.apps_overlapping.push(e.apps_overlapping[0]);},
+  e=>{e.first_event_at='nope';},
+ ]) {
+  const bad=structuredClone(report); change(bad.ranges.today.event_usage);
+  assert.equal((await svc.report(bad,now)).ok,false);
+ }
+ const without=structuredClone(report); delete without.ranges.today.event_usage;
+ assert.equal((await svc.report(without,now+1000)).ok,true);
+ assert.equal((await svc.query('today',now+1000)).candidate_event_usage,undefined);
+});
