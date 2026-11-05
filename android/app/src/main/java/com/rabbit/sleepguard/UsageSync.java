@@ -55,7 +55,7 @@ public final class UsageSync {
                 if (!upload(prefs, report)) throw new IllegalStateException("upload failed");
                 String status = report.getString("state");
                 String time = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
-                message = status.equals("ready") ? "已同步 · " + time + "（时长还在核对，暂不作数）"
+                message = status.equals("ready") ? "已同步 · " + time
                         : status.equals("disabled") ? "已停止同步，服务器上的旧统计已清除。"
                         : status.equals("permission_required") ? "还需要开启使用情况访问权限。"
                         : "系统读取失败，已告知伴侣统计暂不可用。";

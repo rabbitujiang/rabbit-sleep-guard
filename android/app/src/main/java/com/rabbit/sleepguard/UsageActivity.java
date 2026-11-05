@@ -169,17 +169,11 @@ public final class UsageActivity extends Activity {
                     if (ticket != generation || isFinishing() || isDestroyed()) return;
                     if (!hasAccess()) { refresh(); return; }
                     results.removeAllViews();
-                    results.addView(text("屏幕使用时长暂不可用", 22, INK));
-                    results.addView(text("安卓通用数据尚未与手机统计页核对一致，不作为实际使用时长。" +
-                            (summary.expanded() ? "当前原始数据还包含所选日期以外的时段。" : ""), 14, MUTED), margin(12));
+                    if (candidate != null) renderUsage(candidate, candidateRows, begin, end, zone);
+                    else results.addView(text("这次没读到屏幕使用时长，请点刷新再试。", 15, MUTED));
                     Button raw = button("查看原始数据（仅排错，不是屏幕时长）");
                     raw.setOnClickListener(v -> render(rows, summary.start, summary.end, summary.firstRecord, zone));
                     results.addView(raw, margin(16));
-                    if (candidate != null) {
-                        Button check = button("查看新算法结果（核对中，暂不作数）");
-                        check.setOnClickListener(v -> renderCandidate(candidate, candidateRows, begin, end, zone));
-                        results.addView(check, margin(12));
-                    }
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -210,20 +204,19 @@ public final class UsageActivity extends Activity {
         return rows;
     }
 
-    private void renderCandidate(EventUsage usage, List<Row> rows, long begin, long end, ZoneId zone) {
-        results.removeAllViews();
+    private void renderUsage(EventUsage usage, List<Row> rows, long begin, long end, ZoneId zone) {
         DateTimeFormatter date = DateTimeFormatter.ofPattern("MM月dd日 HH:mm").withZone(zone);
-        results.addView(text("核对中：还没和手机统计页对上，暂不作数", 16, MINT), margin(8));
         results.addView(text(date.format(Instant.ofEpochMilli(begin)) + " — "
                 + date.format(Instant.ofEpochMilli(end)), 12, MUTED));
-        results.addView(text(UsageTimeline.duration(usage.overlapping.screenOnMillis()), 30, MINT), margin(18));
-        results.addView(text("亮屏时长", 13, MUTED), margin(4));
-        results.addView(text(UsageTimeline.duration(usage.overlapping.unlockedMillis()), 22, MINT), margin(12));
-        results.addView(text("解锁后时长", 13, MUTED), margin(4));
+        results.addView(text(UsageTimeline.duration(usage.overlapping.unlockedMillis()), 30, MINT), margin(18));
+        results.addView(text("屏幕使用时长（和手机统计页可能差几分钟）", 13, MUTED), margin(4));
+        results.addView(text(UsageTimeline.duration(usage.overlapping.screenOnMillis()), 22, MINT), margin(12));
+        results.addView(text("亮屏时长（含未解锁）", 13, MUTED), margin(4));
         if (usage.firstEvent > begin && usage.firstEvent != Long.MAX_VALUE) {
             results.addView(text("手机最早只留到 " + date.format(Instant.ofEpochMilli(usage.firstEvent))
                     + "，更早的没有计入。", 12, MUTED), margin(10));
         }
+        if (rows.isEmpty()) results.addView(text("这个时段还没有应用使用记录", 15, MUTED), margin(16));
         addCards(rows);
     }
 
