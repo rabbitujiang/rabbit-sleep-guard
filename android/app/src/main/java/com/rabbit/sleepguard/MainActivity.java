@@ -218,6 +218,20 @@ public final class MainActivity extends Activity {
         lockScreen.setOnCheckedChangeListener((button, checked) -> preferences.setLockScreen(checked));
         permissions.addView(lockScreen, topMargin(10));
 
+        Switch orbSwitch = new Switch(this);
+        orbSwitch.setText("悬浮兔子（有未读会炸毛，戳一下冒爱心，连戳三下回兔子窝）");
+        orbSwitch.setTextColor(INK);
+        orbSwitch.setTextSize(15f);
+        orbSwitch.setChecked(preferences.orbEnabled());
+        orbSwitch.setThumbTintList(new ColorStateList(
+                new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
+                new int[]{MINT, Color.rgb(117, 128, 158)}));
+        orbSwitch.setTrackTintList(new ColorStateList(
+                new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
+                new int[]{Color.argb(110, 128, 236, 213), Color.argb(75, 117, 128, 158)}));
+        orbSwitch.setOnCheckedChangeListener((button, checked) -> preferences.setOrbEnabled(checked));
+        permissions.addView(orbSwitch, topMargin(10));
+
         Button admin = button("允许设备管理锁屏", false);
         admin.setOnClickListener(view -> requestDeviceAdmin());
         permissions.addView(admin, topMargin(8));

@@ -68,6 +68,8 @@ public final class GuardApiClient {
     }
 
     private static final ExecutorService NETWORK = Executors.newSingleThreadExecutor();
+    // Its own thread, so a slow unread check can never hold up a guard request.
+    private static final ExecutorService ORB_NETWORK = Executors.newSingleThreadExecutor();
     private final GuardPreferences preferences;
 
     public GuardApiClient(GuardPreferences preferences) {
@@ -188,6 +190,63 @@ public final class GuardApiClient {
         } finally {
             if (connection != null) connection.disconnect();
         }
+    }
+
+    public interface OrbCallback {
+        void complete(boolean ok, int total, String openUrl);
+    }
+
+    public void orbUnread(OrbCallback callback) {
+        orbRequest("GET", "/api/device/orb", callback);
+    }
+
+    public void orbPoke(OrbCallback callback) {
+        orbRequest("POST", "/api/device/orb/poke", callback);
+    }
+
+    // Kept apart from execute(): that one writes guard state from every reply, and an orb
+    // reply carries no guard fields, so sharing it would switch the sleep guard off.
+    private void orbRequest(String method, String path, OrbCallback callback) {
+        ORB_NETWORK.execute(() -> {
+            if (!preferences.configured()) {
+                callback.complete(false, 0, "");
+                return;
+            }
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new URL(preferences.serverUrl() + path).openConnection();
+                connection.setRequestMethod(method);
+                connection.setConnectTimeout(2_500);
+                connection.setReadTimeout(9_000);
+                connection.setRequestProperty("Authorization", "Bearer " + preferences.deviceToken());
+                connection.setRequestProperty("Accept", "application/json");
+                if ("POST".equals(method)) {
+                    connection.setDoOutput(true);
+                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                    try (OutputStream output = connection.getOutputStream()) {
+                        output.write("{}".getBytes(StandardCharsets.UTF_8));
+                    }
+                }
+                int code = connection.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    callback.complete(false, 0, "");
+                    return;
+                }
+                StringBuilder text = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) text.append(line);
+                }
+                JSONObject json = new JSONObject(text.toString());
+                callback.complete(json.optBoolean("ok", false), json.optInt("total", 0),
+                        json.optString("open_url", ""));
+            } catch (Exception error) {
+                callback.complete(false, 0, "");
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
     }
 
     private static String stageFor(int attempts) {

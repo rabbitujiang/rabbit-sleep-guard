@@ -38,6 +38,7 @@ public final class GuardAccessibilityService extends AccessibilityService {
     private GuardPreferences preferences;
     private GuardApiClient api;
     private ScreenShareController screenShare;
+    private OrbController orb;
     private WindowManager windowManager;
     private View overlay;
     private String lastPackage = "";
@@ -142,6 +143,9 @@ public final class GuardAccessibilityService extends AccessibilityService {
         screenShare = new ScreenShareController(this, preferences);
         registerStatusReceiver();
         registerNetworkCallback();
+        if (orb != null) orb.stop();
+        orb = new OrbController(this, windowManager, preferences, api);
+        orb.start();
         restoreGuardPage();
         main.removeCallbacks(heartbeat);
         main.post(heartbeat);
@@ -358,6 +362,7 @@ public final class GuardAccessibilityService extends AccessibilityService {
         try {
             windowManager.addView(card, params);
             overlay = card;
+            if (orb != null) orb.setSuppressed(true);
         } catch (Exception ignored) {
             overlay = null;
         }
@@ -458,6 +463,7 @@ public final class GuardAccessibilityService extends AccessibilityService {
         } catch (Exception ignored) {
         }
         overlay = null;
+        if (orb != null) orb.setSuppressed(false);
     }
 
     private int dp(int value) {
@@ -471,6 +477,8 @@ public final class GuardAccessibilityService extends AccessibilityService {
     @Override
     public void onDestroy() {
         if (screenShare != null) screenShare.close();
+        if (orb != null) orb.stop();
+        orb = null;
         main.removeCallbacksAndMessages(null);
         screenLockRequestedByUser = false;
         if (statusReceiverRegistered) {

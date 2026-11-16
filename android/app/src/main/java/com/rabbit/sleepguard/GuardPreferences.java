@@ -22,6 +22,9 @@ public final class GuardPreferences {
     private static final String LAST_DEVICE_REPORT = "last_device_report";
     private static final String GUARD_PAGE_VISIBLE = "guard_page_visible";
     private static final String GUARDED_APP_NAME = "guarded_app_name";
+    private static final String ORB_ENABLED = "orb_enabled";
+    private static final String ORB_ON_RIGHT = "orb_on_right";
+    private static final String ORB_Y = "orb_y";
 
     private final SharedPreferences preferences;
 
@@ -150,5 +153,39 @@ public final class GuardPreferences {
 
     public boolean configured() {
         return serverUrl().startsWith("https://") && deviceToken().length() >= 24;
+    }
+
+    public boolean orbEnabled() {
+        return preferences.getBoolean(ORB_ENABLED, true);
+    }
+
+    public void setOrbEnabled(boolean enabled) {
+        preferences.edit().putBoolean(ORB_ENABLED, enabled).apply();
+    }
+
+    public boolean orbOnRight() {
+        return preferences.getBoolean(ORB_ON_RIGHT, true);
+    }
+
+    /** Vertical position as a 0..1 fraction of the usable screen height. */
+    public float orbY() {
+        return preferences.getFloat(ORB_Y, 0.42f);
+    }
+
+    public void saveOrbPosition(boolean onRight, float y) {
+        preferences.edit().putBoolean(ORB_ON_RIGHT, onRight).putFloat(ORB_Y, y).apply();
+    }
+
+    /** Keys whose change means the floating rabbit should re-check whether to show. */
+    public static boolean isOrbKey(String key) {
+        return ORB_ENABLED.equals(key) || SERVER_URL.equals(key) || DEVICE_TOKEN.equals(key);
+    }
+
+    public void listen(SharedPreferences.OnSharedPreferenceChangeListener listener) {
+        preferences.registerOnSharedPreferenceChangeListener(listener);
+    }
+
+    public void unlisten(SharedPreferences.OnSharedPreferenceChangeListener listener) {
+        preferences.unregisterOnSharedPreferenceChangeListener(listener);
     }
 }
