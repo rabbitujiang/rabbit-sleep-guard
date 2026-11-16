@@ -260,7 +260,7 @@ public final class OrbController {
         tapCount++;
         showPoked();
         handler.removeCallbacks(tapDecision);
-        if (tapCount >= 3) {
+        if (tapCount >= 2) {
             tapCount = 0;
             openWarren();
         } else {

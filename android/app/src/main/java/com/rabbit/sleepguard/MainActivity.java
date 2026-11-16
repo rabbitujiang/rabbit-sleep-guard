@@ -219,7 +219,7 @@ public final class MainActivity extends Activity {
         permissions.addView(lockScreen, topMargin(10));
 
         Switch orbSwitch = new Switch(this);
-        orbSwitch.setText("悬浮兔子（有未读会炸毛，戳一下冒爱心，连戳三下回兔子窝）");
+        orbSwitch.setText("悬浮兔子（有未读会炸毛，戳一下冒爱心，连戳两下回兔子窝）");
         orbSwitch.setTextColor(INK);
         orbSwitch.setTextSize(15f);
         orbSwitch.setChecked(preferences.orbEnabled());
