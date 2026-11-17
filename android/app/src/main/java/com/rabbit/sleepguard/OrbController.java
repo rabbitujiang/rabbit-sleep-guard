@@ -30,11 +30,12 @@ import android.widget.ImageView;
 /**
  * The floating rabbit. It lives in the accessibility service's window layer, so it needs no
  * extra permission. It only ever talks to this app's own server: unread counts come from
- * GET /api/device/orb and a tap forwards a poke through POST /api/device/orb/poke.
+ * GET /api/device/orb a double tap forwards a poke through POST /api/device/orb/poke, a long press opens the warren.
  */
 public final class OrbController {
     private static final long POLL_MS = 20_000L;
     private static final long TAP_WINDOW_MS = 420L;
+    private static final long LONG_PRESS_MS = 700L;
     private static final long POKED_MS = 1_300L;
     private static final long POKE_COOLDOWN_MS = 60_000L;
     private static final long BOUNCE_EVERY_MS = 4_000L;
@@ -67,10 +68,8 @@ public final class OrbController {
         poked = false;
         applyLook();
     };
-    private final Runnable tapDecision = () -> {
-        tapCount = 0;
-        sendPoke();
-    };
+    // Single tap only changes the face; a second tap inside the window sends the poke.
+    private final Runnable tapDecision = () -> tapCount = 0;
     private final Runnable poll = new Runnable() {
         @Override
         public void run() {
@@ -262,7 +261,7 @@ public final class OrbController {
         handler.removeCallbacks(tapDecision);
         if (tapCount >= 2) {
             tapCount = 0;
-            openWarren();
+            sendPoke();
         } else {
             handler.postDelayed(tapDecision, TAP_WINDOW_MS);
         }
@@ -360,6 +359,14 @@ public final class OrbController {
         private int startX;
         private int startY;
         private boolean dragging;
+        private boolean longPressed;
+        private final Runnable longPress = () -> {
+            longPressed = true;
+            handler.removeCallbacks(tapDecision);
+            tapCount = 0;
+            showPoked();
+            openWarren();
+        };
 
         @Override
         public boolean onTouch(View view, MotionEvent event) {
@@ -372,11 +379,17 @@ public final class OrbController {
                     startX = params.x;
                     startY = params.y;
                     dragging = false;
+                    longPressed = false;
+                    handler.removeCallbacks(longPress);
+                    handler.postDelayed(longPress, LONG_PRESS_MS);
                     return true;
                 case MotionEvent.ACTION_MOVE: {
                     float dx = event.getRawX() - downX;
                     float dy = event.getRawY() - downY;
-                    if (!dragging && Math.hypot(dx, dy) > slop) dragging = true;
+                    if (!dragging && !longPressed && Math.hypot(dx, dy) > slop) {
+                        dragging = true;
+                        handler.removeCallbacks(longPress);
+                    }
                     if (dragging) {
                         params.x = startX + Math.round(dx);
                         params.y = clampY(startY + Math.round(dy), screenBounds());
@@ -388,14 +401,18 @@ public final class OrbController {
                     return true;
                 }
                 case MotionEvent.ACTION_UP:
+                    handler.removeCallbacks(longPress);
                     if (dragging) {
                         snapToEdge();
-                    } else {
+                    } else if (!longPressed) {
                         onTap();
                     }
                     dragging = false;
+                    longPressed = false;
                     return true;
                 case MotionEvent.ACTION_CANCEL:
+                    handler.removeCallbacks(longPress);
+                    longPressed = false;
                     if (dragging) snapToEdge();
                     dragging = false;
                     return true;
